@@ -214,11 +214,11 @@
         </div>
     </div>
 
-    <!-- Firebase SDK & 連携ロジック -->
+    <!-- Firebase SDK & 連携ロジック（安定版 10.14.0 を使用） -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-storage.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBub_ct0b-_mx3H2HW4NBbnzE-P4rlg_ZQ",
@@ -286,7 +286,8 @@
                     ];
                 case "4-":
                     return [
-                        { id: "S", name: "整調 (Stroke / 4番)" }, { id: "3", name: "3番" }, { id: "2", name: "2番" }, { id: "B", name: "バウ (Bow / 1番)" }
+                        { id: "S", name: "整調 (Stroke / 4番)" }, { id: "3", name: "3番" }, { id: "2", name: "2番" },
+                        { id: "B", name: "バウ (Bow / 1番)" }
                     ];
                 case "2x":
                     return [
@@ -355,7 +356,7 @@
                     { id: "rigger_r_body_3", label: "ピン角度部にへこみや変形は無いか" },
                     { id: "rigger_r_body_4", label: "ネジ、ワッシャー、ナットはすべて規定通り入っているか" },
                     { id: "rigger_r_body_5", label: "ネジ、ワッシャー、ナットは錆びたり変形したりしていないか" },
-                    { id: "rigger_r_body_6", label: "ピンはまっすぐか（曲がっていないか）" },
+                    { id: "rigger_r_body_6", label: "ピンはまっすぐか（曲가っていないか）" },
                     { id: "rigger_r_body_7", label: "リギング数値を入正しく出せるか" },
                     { id: "rigger_r_stay_1", label: "折れたり曲がったりしていないか" },
                     { id: "rigger_r_stay_2", label: "ネジ穴周辺に亀裂や変形はないか" },
@@ -451,7 +452,6 @@
                 console.error("Firebase同期エラー:", err);
                 statusEl.innerText = "🔴 同期エラー(ローカル動作)";
                 statusEl.className = "text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-normal";
-                // フォールバックとしてローカルストレージを使用
                 const local = localStorage.getItem("shiga_rowing_comprehensive_db_v6");
                 if (local) db = JSON.parse(local);
                 renderDashboard();
