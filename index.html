@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>滋賀大学漕艇部 - 総合艇管理・リギングシステム (Firebase連携版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen pb-20">
+
+    <header class="bg-blue-900 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <h1 class="text-base sm:text-lg font-bold flex items-center gap-2">
+                🚣‍♂️ 滋賀大学漕艇部 総合艇管理・リギング <span id="sync-status" class="text-[10px] bg-yellow-500 text-white px-2 py-0.5 rounded font-normal">🔄 同期中...</span>
+            </h1>
+            <div class="flex flex-wrap gap-1.5 justify-center">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-blue-700 font-medium transition">ステータス一覧</button>
+                <button onclick="switchTab('detail')" id="btn-detail" class="px-3 py-1.5 text-xs sm:text-sm rounded-lg hover:bg-blue-800 font-medium transition">詳細点検カルテ</button>
+                <button onclick="switchTab('rigging')" id="btn-rigging" class="px-3 py-1.5 text-xs sm:text-sm rounded-lg hover:bg-blue-800 font-medium transition">リギング値詳細</button>
+                <button onclick="openResetModal()" class="px-2.5 py-1.5 text-xs rounded-lg bg-red-700/80 hover:bg-red-700 font-medium transition">🔒 リセット</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+        <!-- ① ダッシュボード画面（ステータス一覧） -->
+        <section id="view-dashboard" class="space-y-6">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                    <h2 class="font-bold text-gray-900 text-base">保有18艇 リアルタイムステータス (雲泥同期)</h2>
+                    <p class="text-xs text-gray-500">FirebaseクラウドDBと連携中。カードをタップして詳細を確認。</p>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded font-medium">🟢 正常</span>
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-medium">🟡 軽微</span>
+                    <span class="px-2 py-1 bg-red-100 text-red-800 rounded font-medium">🔴 要修理</span>
+                </div>
+            </div>
+
+            <div id="boat-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <!-- 動的生成 -->
+            </div>
+        </section>
+
+        <!-- ② 詳細点検カルテ画面 -->
+        <section id="view-detail" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-900">📝 艇整備・詳細点検カルテ</h2>
+                        <p class="text-xs text-gray-500">艇全体および各シートごとに点検を入力します。</p>
+                    </div>
+                    <div class="w-full sm:w-auto">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">対象艇の選択</label>
+                        <select id="detail-boat-select" onchange="loadBoatDetailData()" class="px-3 py-2 border rounded-lg text-sm bg-gray-50 font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-60">
+                            <!-- 動的生成 -->
+                        </select>
+                    </div>
+                </div>
+
+                <form id="detailed-check-form" onsubmit="saveDetailedCheck(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">点検/報告日</label>
+                            <input type="date" id="check-date" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">点検者 / 報告者名</label>
+                            <input type="text" id="check-reporter" placeholder="例: 整備 太郎" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- 1. 艇共通の点検 -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-sm text-blue-900 flex items-center gap-2 border-b pb-2">
+                            <span>⚓ 1. 艇全体・共通点検（ラダー関係 / 艇本体）</span>
+                        </h3>
+                        <div id="boat-wide-sections-container" class="space-y-4">
+                            <!-- 動的生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 2. 各シートごとの点検 -->
+                    <div class="space-y-4 pt-4 border-t">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <h3 class="font-bold text-sm text-blue-900 flex items-center gap-2">
+                               <span>👥 2. 各シート別点検（リガー・ストレッチャー・スライド）</span>
+                            </h3>
+                            <p class="text-xs text-gray-500">タブでシートを選択して各ポジションの点検を入力してください。</p>
+                        </div>
+                        <!-- ポジション切り替えタブ -->
+                        <div id="detail-position-tabs" class="flex flex-wrap gap-1.5 bg-gray-50 p-2 rounded-xl border">
+                            <!-- 動的生成 -->
+                        </div>
+                        <!-- 選択中ポジションの点検項目コンテナ -->
+                        <div id="detail-seat-sections-container" class="space-y-4">
+                            <!-- 動的生成 -->
+                        </div>
+                    </div>
+
+                    <div class="sticky bottom-4 z-20 pt-4 flex gap-3">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl text-sm hover:bg-blue-700 transition shadow-lg">
+                            詳細点検カルテをクラウドに保存する
+                        </button>
+                        <button type="button" onclick="resolveBoatStatus()" class="px-5 bg-green-600 text-white font-bold py-3 rounded-xl text-sm hover:bg-green-700 transition shadow-lg">
+                            🟢 状態を「正常」にリセット
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ③ リギング値管理画面 -->
+        <section id="view-rigging" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-900">📐 リギング値詳細管理（1人ずつ入力）</h2>
+                        <p id="rigging-boat-type-desc" class="text-xs text-gray-500">艇を選択すると、マニュアル準拠の定員・ポジションが展開されます。</p>
+                    </div>
+                    <div class="w-full sm:w-auto">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">対象艇の選択</label>
+                        <select id="rigging-boat-select" onchange="loadRiggingData()" class="px-3 py-2 border rounded-lg text-sm bg-gray-50 font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-60">
+                            <!-- 動的生成 -->
+                        </select>
+                    </div>
+                </div>
+
+                <form id="rigging-form" onsubmit="saveRiggingData(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">シート番号・バージョン (例: 2026春-01)</label>
+                            <input type="text" id="rigging-sheet-id" placeholder="例: 2026春-01" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">最終設定日</label>
+                            <input type="date" id="rigging-date" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- 1人ずつのポジション別入力カード群 -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-sm text-gray-800 flex items-center gap-2">
+                            <span>👥 クルー・ポジション別 リギング詳細パラメータ</span>
+                        </h3>
+                        <div id="rigging-positions-container" class="space-y-6">
+                            <!-- JavaScriptで自動展開 -->
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-sm hover:bg-blue-700 transition shadow">
+                        リギング設定をクラウドに保存する
+                    </button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 艇詳細確認用モーダル -->
+    <div id="boat-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-center pb-3 border-b">
+                <h3 id="modal-title" class="text-lg font-bold text-gray-900">艇カルテ詳細</h3>
+                <button onclick="closeBoatModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
+            </div>
+            <div id="modal-body" class="space-y-4 text-sm text-gray-700">
+                <!-- 動的挿入 -->
+            </div>
+            <div class="pt-4 border-t flex gap-2">
+                <button onclick="jumpToDetailFromModal()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 transition">この艇の詳細カルテを開く</button>
+                <button onclick="jumpToRiggingFromModal()" class="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-indigo-700 transition">リギング詳細を見る</button>
+                <button onclick="closeBoatModal()" class="px-4 bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-300 transition">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 画像拡大ライトボックスモーダル -->
+    <div id="image-modal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-[100] cursor-pointer" onclick="closeImageModal()">
+        <div class="relative max-w-5xl max-h-[95vh] w-full flex items-center justify-center p-2" onclick="event.stopPropagation()">
+            <button onclick="closeImageModal()" class="absolute top-2 right-4 text-white bg-black/50 hover:bg-black/80 px-3 py-1 rounded-full font-bold text-sm transition">✕ 閉じる</button>
+            <img id="modal-zoomed-img" src="" alt="拡大画像" class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-gray-700">
+        </div>
+    </div>
+
+    <!-- 管理者リセット用パスワードモーダル -->
+    <div id="reset-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="text-base font-bold text-red-600">🔒 管理者リセット認証</h3>
+                <button onclick="closeResetModal()" class="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+            </div>
+            <p class="text-xs text-gray-600">すべてのデータを初期状態にリセットします。</p>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">管理者パスワード</label>
+                <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:outline-none">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="executeReset()" class="flex-1 bg-red-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition">リセット実行</button>
+                <button onclick="closeResetModal()" class="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-bold hover:bg-gray-300 transition">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- カスタム通知モーダル -->
+    <div id="alert-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-xs w-full p-5 space-y-3 text-center shadow-2xl">
+            <p id="alert-message" class="text-sm font-medium text-gray-800"></p>
+            <button onclick="closeAlertModal()" class="w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">OK</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK & 連携ロジック -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-storage.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBub_ct0b-_mx3H2HW4NBbnzE-P4rlg_ZQ",
+            authDomain: "cleanupproject-cc71c.firebaseapp.com",
+            projectId: "cleanupproject-cc71c",
+            storageBucket: "cleanupproject-cc71c.firebasestorage.app",
+            messagingSenderId: "744281428662",
+            appId: "1:744281428662:web:8728bcc5c68b7d3883cc17"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const dbCloud = getFirestore(app);
+        const storage = getStorage(app);
+
+        // グローバル公開用
+        window.dbCloud = dbCloud;
+        window.storage = storage;
+        window.docRef = doc;
+        window.setDoc = setDoc;
+        window.getDoc = getDoc;
+        window.ref = ref;
+        window.uploadBytes = uploadBytes;
+        window.getDownloadURL = getDownloadURL;
+
+        // アプリ起動時にクラウドからデータ同期
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initDatabase();
+        });
+    </script>
+
+    <script>
+        const BOAT_DEFINITIONS = [
+            { name: "Speranza", type: "8+", label: "エイト (8+)" },
+            { name: "Autostrada", type: "8+", label: "エイト (8+)" },
+            { name: "霞", type: "4+", label: "舵手付きフォア (4+)" },
+            { name: "HIKONE85", type: "4+", label: "舵手付きフォア (4+)" },
+            { name: "GreenBeret", type: "4+", label: "舵手付きフォア (4+)" },
+            { name: "セリーネⅡ", type: "4+", label: "舵手付きフォア (4+)" },
+            { name: "湖覇", type: "4+", label: "舵手付きフォア (4+)" },
+            { name: "鷲羽", type: "4-", label: "フォア/クォドルプル (4- / 4x+)" },
+            { name: "EAST SIDE", type: "4+", label: "舵手付きクォドルプル (4x+)" },
+            { name: "翠嵐", type: "2x", label: "ダブルスカル / ペア (2x / 2-)" },
+            { name: "翠柳", type: "2x", label: "ダブルスカル / ペア (2x / 2-)" },
+            { name: "紫水", type: "2x", label: "ダブルスカル / ペア (2x / 2-)" },
+            { name: "柳王（やなぎわ）", type: "2x", label: "ダブルスカル / ペア (2x / 2-)" },
+            { name: "霞光", type: "2x", label: "ダブルスカル / ペア (2x / 2-)" },
+            { name: "翔破", type: "1x", label: "シングルスカル (1x)" },
+            { name: "陽姫", type: "1x", label: "シングルスカル (1x)" },
+            { name: "GARUDA", type: "1x", label: "シングルスカル (1x)" },
+            { name: "White Wind", type: "1x", label: "シングルスカル (1x)" }
+        ];
+
+        function getPositionsForType(type) {
+            switch(type) {
+                case "8+":
+                    return [
+                        { id: "S", name: "整調 (Stroke / 8番)" }, { id: "7", name: "7番" }, { id: "6", name: "6番" },
+                        { id: "5", name: "5番" }, { id: "4", name: "4番" }, { id: "3", name: "3番" },
+                        { id: "2", name: "2番" }, { id: "B", name: "バウ (Bow / 1番)" }, { id: "Cox", name: "コックス (Cox)" }
+                    ];
+                case "4+":
+                    return [
+                        { id: "S", name: "整調 (Stroke / 4番)" }, { id: "3", name: "3番" }, { id: "2", name: "2番" },
+                        { id: "B", name: "バウ (Bow / 1番)" }, { id: "Cox", name: "コックス (Cox)" }
+                    ];
+                case "4-":
+                    return [
+                        { id: "S", name: "整調 (Stroke / 4番)" }, { id: "3", name: "3番" }, { id: "2", name: "2番" }, { id: "B", name: "バウ (Bow / 1番)" }
+                    ];
+                case "2x":
+                    return [
+                        { id: "S", name: "整調 (Stroke / 2番)" }, { id: "B", name: "バウ (Bow / 1番)" }
+                    ];
+                case "1x":
+                    return [
+                        { id: "S", name: "整調 / スウガー (1x単座)" }
+                    ];
+                default:
+                    return [{ id: "S", name: "整調" }, { id: "B", name: "バウ" }];
+            }
+        }
+
+        const CHECK_SECTIONS = [
+            {
+                id: "rudder", category: "ラダー関係", target: "boat",
+                items: [
+                    { id: "rudder_1", label: "ステアリングストレッチャー配線調整穴が広がっていないか" },
+                    { id: "rudder_2", label: "インナーワイヤーがアウターワイヤー内を通し通してあるか" },
+                    { id: "rudder_3", label: "アウターワイヤーがワイヤー受けに衝突しているか" },
+                    { id: "rudder_4", label: "ワイヤーはスムーズに動くか" },
+                    { id: "rudder_5", label: "ラダーヨークはラダー本体と直交しているか" },
+                    { id: "rudder_6", label: "ワイヤーがラダーヨークに正しく固定されているか" },
+                    { id: "rudder_other", label: "その他 (ラダー関係特記事項)" }
+                ]
+            },
+            {
+                id: "hull", category: "艇本体 (ハル・フィン等)", target: "boat",
+                items: [
+                    { id: "hull_1", label: "へこみや損傷はないか" },
+                    { id: "hull_2", label: "貼るとペコペコと動くところはないか" },
+                    { id: "hull_3", label: "黄ばんだり色が付いているところは無いか" },
+                    { id: "hull_4", label: "内部の構造が露出しているところは無いか" },
+                    { id: "hull_5", label: "水抜き栓は正しく締め込んで取り外しできるか" },
+                    { id: "hull_6", label: "船体内部に水が浸入していないか" },
+                    { id: "hull_7", label: "バウマンカーホルダーはぐらぐらになっていないか" },
+                    { id: "hull_8", label: "フィンとラダーはボートの中心線上にまっすぐ取り付けられているか" },
+                    { id: "hull_other", label: "その他 (艇本体特記事項)" }
+                ]
+            },
+            {
+                id: "rigger_s", category: "リガー (Sサイド / ポート側)", target: "seat",
+                items: [
+                    { id: "rigger_s_body_1", label: "折れ、曲がり、へこみなどはないか" },
+                    { id: "rigger_s_body_2", label: "接続部分やネジ穴周辺に亀裂などはないか" },
+                    { id: "rigger_s_body_3", label: "ピン角度部にへこみや変形は無いか" },
+                    { id: "rigger_s_body_4", label: "ネジ、ワッシャー、ナットはすべて規定通り入っているか" },
+                    { id: "rigger_s_body_5", label: "ネジ、ワッシャー、ナットは錆びたり変形したりしていないか" },
+                    { id: "rigger_s_body_6", label: "ピンはまっすぐか（曲がっていないか）" },
+                    { id: "rigger_s_body_7", label: "リギング数値を入正しく出せるか" },
+                    { id: "rigger_s_stay_1", label: "根がっていないか" },
+                    { id: "rigger_s_stay_2", label: "ネジ穴周辺に亀裂や変形はないか" },
+                    { id: "rigger_s_stay_3", label: "エクステンションはスムーズに抜き差しできるか" },
+                    { id: "rigger_s_stay_4", label: "ホースクランプは空回りしていないか" },
+                    { id: "rigger_s_frame_1", label: "ネジ穴周辺に変形やビビなどは無いか" },
+                    { id: "rigger_s_frame_2", label: "リガーボルト固定台座はフレームに正しく噛み込んでいるか" },
+                    { id: "rigger_s_other", label: "その他 (リガーSサイド特記事項)" }
+                ]
+            },
+            {
+                id: "rigger_r", category: "リガー (Rサイド / スターボ側)", target: "seat",
+                items: [
+                    { id: "rigger_r_body_1", label: "折れ、曲がり、へこみなどはないか" },
+                    { id: "rigger_r_body_2", label: "接続部分や穴周辺に亀裂などは無いか" },
+                    { id: "rigger_r_body_3", label: "ピン角度部にへこみや変形は無いか" },
+                    { id: "rigger_r_body_4", label: "ネジ、ワッシャー、ナットはすべて規定通り入っているか" },
+                    { id: "rigger_r_body_5", label: "ネジ、ワッシャー、ナットは錆びたり変形したりしていないか" },
+                    { id: "rigger_r_body_6", label: "ピンはまっすぐか（曲がっていないか）" },
+                    { id: "rigger_r_body_7", label: "リギング数値を入正しく出せるか" },
+                    { id: "rigger_r_stay_1", label: "折れたり曲がったりしていないか" },
+                    { id: "rigger_r_stay_2", label: "ネジ穴周辺に亀裂や変形はないか" },
+                    { id: "rigger_r_stay_3", label: "エクステンションはスムーズに抜き差しできるか" },
+                    { id: "rigger_r_stay_4", label: "ホースクランプは空回りしていないか" },
+                    { id: "rigger_r_frame_1", label: "ネジ穴周辺に変形やビビなどは無いか" },
+                    { id: "rigger_r_frame_2", label: "リガーボルト固定台座はフレームに正しく噛み込んでいるか" },
+                    { id: "rigger_r_other", label: "その他 (リガーRサイド特記事項)" }
+                ]
+            },
+            {
+                id: "stretcher", category: "ストレッチャー", target: "seat",
+                items: [
+                    { id: "stretcher_1", label: "固定用のワッシャー、ナットは正しく入っているか" },
+                    { id: "stretcher_2", label: "同上、錆びていないか" },
+                    { id: "stretcher_3", label: "Tボルトをスムーズにギアレール内を動かせるか" },
+                    { id: "stretcher_4", label: "ヒールループは正しくセットされているか" },
+                    { id: "stretcher_5", label: "ボードやシューズがボートにボルト止めで傷はないか" },
+                    { id: "stretcher_6", label: "シューズは傷んでいないか" },
+                    { id: "stretcher_7", label: "シューズのベルクロは機能を果たしているか" },
+                    { id: "stretcher_8", label: "シューズの底は割れていないか" },
+                    { id: "stretcher_9", label: "シューズパネル固定ネジ、ワッシャー、ナットは正しく入っているか" },
+                    { id: "stretcher_10", label: "同上、錆びていないか" },
+                    { id: "stretcher_11", label: "同上、ネジ穴が広がるではなく、ナットを簡単に締め込めるか" },
+                    { id: "stretcher_other", label: "その他 (ストレッチャー特記事項)" }
+                ]
+            },
+            {
+                id: "slide", category: "スライド (レール・シート)", target: "seat",
+                items: [
+                    { id: "slide_1", label: "ストッパーは前後床止め個が正しく入っているか" },
+                    { id: "slide_2", label: "金属部が摩耗していないか（黒、または銀色の粉）" },
+                    { id: "slide_3", label: "傷がついていないか" },
+                    { id: "slide_4", label: "前部調節用のブッシュ歯車のネジは正しく動くか" },
+                    { id: "slide_5", label: "4つのホイールがすべて回っているか" },
+                    { id: "slide_6", label: "ホイールがすり減ったり凸凹になっていないか" },
+                    { id: "slide_7", label: "レールガイドが変形していないか" },
+                    { id: "slide_8", label: "座面は割れていないか" },
+                    { id: "slide_9", label: "シャージと座面は正しく固定されているか" },
+                    { id: "slide_other", label: "その他 (スライド特記事項)" }
+                ]
+            }
+        ];
+
+        let db = {};
+        let currentDetailPosition = "S";
+        let tempPhotos = {};
+
+        async function initDatabase() {
+            const statusEl = document.getElementById('sync-status');
+            try {
+                statusEl.innerText = "🔄 クラウドと同期中...";
+                for (const def of BOAT_DEFINITIONS) {
+                    const docRefSnap = window.docRef(window.dbCloud, "boats", def.name);
+                    const snap = await window.getDoc(docRefSnap);
+
+                    if (snap.exists()) {
+                        db[def.name] = snap.data();
+                    } else {
+                        // 初期データ作成
+                        const positions = getPositionsForType(def.type);
+                        let initialRiggingRows = {};
+                        let initialSeatChecks = {};
+                        positions.forEach(p => {
+                            initialRiggingRows[p.id] = {
+                                playerName: "", spanSpread: "", workHeight: "", pinForwardTilt: "", pinOutwardTilt: "", oarlockAngle: "",
+                                oarMaker: "", bladeShape: "", oarShaft: "", bladePitch: "", oarLength: "", oarInboard: "", oarOverlap: "",
+                                stretcherAngle: "", heelDepth: "", pinToHeel: "", workThrough: "", memo: ""
+                            };
+                            initialSeatChecks[p.id] = {};
+                        });
+
+                        db[def.name] = {
+                            name: def.name,
+                            type: def.type,
+                            label: def.label,
+                            status: "normal",
+                            lastCheckDate: "-",
+                            lastReporter: "-",
+                            checks: { boat: {}, seats: initialSeatChecks },
+                            rigging: { sheetId: "", date: "", positions: initialRiggingRows }
+                        };
+                        await window.setDoc(docRefSnap, db[def.name]);
+                    }
+                }
+                statusEl.innerText = "🟢 クラウド接続完了";
+                statusEl.className = "text-[10px] bg-green-600 text-white px-2 py-0.5 rounded font-normal";
+                renderDashboard();
+                if (!document.getElementById('view-detail').classList.contains('hidden')) {
+                    loadBoatDetailData();
+                }
+            } catch (err) {
+                console.error("Firebase同期エラー:", err);
+                statusEl.innerText = "🔴 同期エラー(ローカル動作)";
+                statusEl.className = "text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-normal";
+                // フォールバックとしてローカルストレージを使用
+                const local = localStorage.getItem("shiga_rowing_comprehensive_db_v6");
+                if (local) db = JSON.parse(local);
+                renderDashboard();
+            }
+        }
+
+        async function saveBoatToCloud(boatName) {
+            try {
+                const docRefSnap = window.docRef(window.dbCloud, "boats", boatName);
+                await window.setDoc(docRefSnap, db[boatName]);
+                console.log(`${boatName} をクラウドに保存しました`);
+            } catch (err) {
+                console.error("保存失敗:", err);
+                showAlert("クラウドへの保存に失敗しました。インターネット接続を確認してください。");
+            }
+        }
+
+        function switchTab(tab) {
+            const dash = document.getElementById("view-dashboard");
+            const detail = document.getElementById("view-detail");
+            const rigging = document.getElementById("view-rigging");
+
+            const btnD = document.getElementById("btn-dashboard");
+            const btnDe = document.getElementById("btn-detail");
+            const btnR = document.getElementById("btn-rigging");
+
+            dash.classList.add('hidden');
+            detail.classList.add('hidden');
+            rigging.classList.add('hidden');
+            btnD.classList.remove('bg-blue-700');
+            btnDe.classList.remove('bg-blue-700');
+            btnR.classList.remove('bg-blue-700');
+
+            if (tab === 'dashboard') {
+                dash.classList.remove('hidden');
+                btnD.classList.add('bg-blue-700');
+                renderDashboard();
+            } else if (tab === 'detail') {
+                detail.classList.remove('hidden');
+                btnDe.classList.add('bg-blue-700');
+                populateBoatSelects();
+                loadBoatDetailData();
+            } else if (tab === 'rigging') {
+                rigging.classList.remove('hidden');
+                btnR.classList.add('bg-blue-700');
+                populateBoatSelects();
+                loadRiggingData();
+            }
+        }
+
+        function populateBoatSelects() {
+            const detailSel = document.getElementById('detail-boat-select');
+            const riggingSel = document.getElementById('rigging-boat-select');
+            
+            const currentDetail = detailSel.value;
+            const currentRigging = riggingSel.value;
+
+            detailSel.innerHTML = '';
+            riggingSel.innerHTML = '';
+
+            BOAT_DEFINITIONS.forEach(def => {
+                const opt1 = document.createElement('option');
+                opt1.value = def.name;
+                opt1.textContent = `${def.name} [${def.label}]`;
+                detailSel.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = def.name;
+                opt2.textContent = `${def.name} [${def.label}]`;
+                riggingSel.appendChild(opt2);
+            });
+
+            if (currentDetail) detailSel.value = currentDetail;
+            if (currentRigging) riggingSel.value = currentRigging;
+        }
+
+        function renderDashboard() {
+            const grid = document.getElementById('boat-grid');
+            grid.innerHTML = '';
+
+            BOAT_DEFINITIONS.forEach(def => {
+                const boatInfo = db[def.name] || { status: 'normal' };
+                
+                let badgeClass = 'bg-green-100 text-green-800 border-green-200';
+                let statusText = '🟢 異常なし';
+                if (boatInfo.status === 'minor') {
+                    badgeClass = 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                    statusText = '🟡 軽微な懸念';
+                } else if (boatInfo.status === 'repair') {
+                    badgeClass = 'bg-red-100 text-red-800 border-red-200';
+                    statusText = '🔴 要修理';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer flex flex-col justify-between';
+                card.onclick = () => openBoatModal(def.name);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-bold text-gray-900 text-base">${def.name}</h3>
+                                <span class="text-[10px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded font-semibold">${def.label}</span>
+                            </div>
+                            <span class="text-xs px-2 py-0.5 rounded-full border font-medium ${badgeClass}">${statusText}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">最終点検: <span class="font-medium text-gray-700">${boatInfo.lastCheckDate || '未実施'}</span> (${boatInfo.lastReporter || '-'})</p>
+                    </div>
+                    <div class="mt-4 pt-2 border-t flex justify-between items-center text-xs text-blue-600 font-medium">
+                        <span>🔍 カルテ詳細を見る</span>
+                        <span>📏 リギング詳細 ➔</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function loadBoatDetailData() {
+            const boatName = document.getElementById('detail-boat-select').value;
+            if (!boatName || !db[boatName]) return;
+
+            const boatInfo = db[boatName];
+            document.getElementById('check-date').value = boatInfo.lastCheckDate !== '-' ? boatInfo.lastCheckDate : new Date().toISOString().split('T')[0];
+            document.getElementById('check-reporter').value = boatInfo.lastReporter !== '-' ? boatInfo.lastReporter : '';
+
+            // 1. 艇共通セクション
+            const boatWideContainer = document.getElementById('boat-wide-sections-container');
+            boatWideContainer.innerHTML = '';
+
+            const boatWideSections = CHECK_SECTIONS.filter(s => s.target === 'boat');
+            boatWideSections.forEach(sec => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3';
+                
+                let html = `<h4 class="font-bold text-xs text-blue-800 border-b pb-1.5">📌 ${sec.category}</h4>`;
+                
+                sec.items.forEach((item, iIdx) => {
+                    const savedItem = (boatInfo.checks && boatInfo.checks.boat && boatInfo.checks.boat[item.id]) || { status: 'normal', memo: '', photo: null };
+                    
+                    html += `
+                        <div class="bg-white p-3 rounded-lg border space-y-2">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <span class="text-xs font-semibold text-gray-800">${iIdx + 1}. ${item.label}</span>
+                                <select id="status_${item.id}" class="text-xs px-2 py-1 border rounded bg-gray-50 font-medium">
+                                    <option value="normal" ${savedItem.status === 'normal' ? 'selected' : ''}>🟢 異常なし</option>
+                                    <option value="minor" ${savedItem.status === 'minor' ? 'selected' : ''}>🟡 気になる点あり</option>
+                                    <option value="repair" ${savedItem.status === 'repair' ? 'selected' : ''}>🔴 要修理・交換</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input type="text" id="memo_${item.id}" value="${savedItem.memo || ''}" placeholder="補足コメント（任意）" class="px-2.5 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="photo_${item.id}" accept="image/*" onchange="handleItemPhoto(event, '${item.id}')" class="text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                </div>
+                            </div>
+                            <div id="preview_wrap_${item.id}" class="${savedItem.photo ? '' : 'hidden'} mt-1">
+                                <img id="img_preview_${item.id}" src="${savedItem.photo || ''}" alt="証拠写真" class="h-20 object-contain rounded border cursor-pointer hover:opacity-85 transition shadow-sm" onclick="openImageModal('${savedItem.photo || ''}')" title="タップして拡大表示">
+                                <button type="button" onclick="removePhoto('${item.id}')" class="text-[10px] text-red-500 hover:underline mt-1 block">写真を削除</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                sectionDiv.innerHTML = html;
+                boatWideContainer.appendChild(sectionDiv);
+            });
+
+            // 2. 各シート別セクション
+            const boatDef = BOAT_DEFINITIONS.find(d => d.name === boatName);
+            const positions = getPositionsForType(boatDef.type);
+
+            if (!positions.some(p => p.id === currentDetailPosition)) {
+                currentDetailPosition = positions[0].id;
+            }
+
+            const tabsContainer = document.getElementById('detail-position-tabs');
+            tabsContainer.innerHTML = '';
+
+            positions.forEach(pos => {
+                const isSelected = pos.id === currentDetailPosition;
+                const tabBtn = document.createElement('button');
+                tabBtn.type = 'button';
+                tabBtn.className = `px-3 py-1.5 text-xs font-bold rounded-lg transition ${isSelected ? 'bg-blue-700 text-white shadow' : 'bg-white text-gray-700 hover:bg-gray-100 border'}`;
+                tabBtn.innerText = `シート: ${pos.name}`;
+                tabBtn.onclick = () => {
+                    saveCurrentPositionFormState();
+                    currentDetailPosition = pos.id;
+                    loadBoatDetailData();
+                };
+                tabsContainer.appendChild(tabBtn);
+            });
+
+            const seatContainer = document.getElementById('detail-seat-sections-container');
+            seatContainer.innerHTML = '';
+
+            const seatSections = CHECK_SECTIONS.filter(s => s.target === 'seat');
+            seatSections.forEach(sec => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3';
+                
+                let html = `<h4 class="font-bold text-xs text-blue-900 border-b pb-1.5">👤 [${positions.find(p => p.id === currentDetailPosition)?.name || currentDetailPosition}] - ${sec.category}</h4>`;
+                
+                sec.items.forEach((item, iIdx) => {
+                    const uniqueKey = `${currentDetailPosition}_${sec.id}_${item.id}`;
+                    const savedItem = (boatInfo.checks && boatInfo.checks.seats && boatInfo.checks.seats[currentDetailPosition] && boatInfo.checks.seats[currentDetailPosition][item.id]) || { status: 'normal', memo: '', photo: null };
+                    
+                    html += `
+                        <div class="bg-white p-3 rounded-lg border space-y-2">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <span class="text-xs font-semibold text-gray-800">${iIdx + 1}. ${item.label}</span>
+                                <select id="status_${uniqueKey}" class="text-xs px-2 py-1 border rounded bg-gray-50 font-medium">
+                                    <option value="normal" ${savedItem.status === 'normal' ? 'selected' : ''}>🟢 異常なし</option>
+                                    <option value="minor" ${savedItem.status === 'minor' ? 'selected' : ''}>🟡 気になる点あり</option>
+                                    <option value="repair" ${savedItem.status === 'repair' ? 'selected' : ''}>🔴 要修理・交換</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input type="text" id="memo_${uniqueKey}" value="${savedItem.memo || ''}" placeholder="補足コメント（任意）" class="px-2.5 py-1.5 border rounded text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="photo_${uniqueKey}" accept="image/*" onchange="handleItemPhoto(event, '${uniqueKey}')" class="text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                </div>
+                            </div>
+                            <div id="preview_wrap_${uniqueKey}" class="${savedItem.photo ? '' : 'hidden'} mt-1">
+                                <img id="img_preview_${uniqueKey}" src="${savedItem.photo || ''}" alt="証拠写真" class="h-20 object-contain rounded border cursor-pointer hover:opacity-85 transition shadow-sm" onclick="openImageModal('${savedItem.photo || ''}')" title="タップして拡大表示">
+                                <button type="button" onclick="removePhoto('${uniqueKey}')" class="text-[10px] text-red-500 hover:underline mt-1 block">写真を削除</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                sectionDiv.innerHTML = html;
+                seatContainer.appendChild(sectionDiv);
+            });
+        }
+
+        async function handleItemPhoto(event, key) {
+            const file = event.target.files[0];
+            if (file) {
+                showAlert("写真をクラウド(Firebase Storage)にアップロード中...");
+                try {
+                    const storageRef = window.ref(window.storage, `boat_photos/${Date.now()}_${file.name}`);
+                    const snapshot = await window.uploadBytes(storageRef, file);
+                    const downloadURL = await window.getDownloadURL(snapshot.ref);
+
+                    tempPhotos[key] = downloadURL;
+                    const previewImg = document.getElementById(`img_preview_${key}`);
+                    previewImg.src = downloadURL;
+                    previewImg.onclick = () => openImageModal(downloadURL);
+                    document.getElementById(`preview_wrap_${key}`).classList.remove('hidden');
+                    closeAlertModal();
+                } catch (err) {
+                    console.error("画像アップロード失敗:", err);
+                    showAlert("画像のアップロードに失敗しました。ファイルサイズ等をご確認ください。");
+                }
+            }
+        }
+
+        function removePhoto(key) {
+            const boatName = document.getElementById('detail-boat-select').value;
+            if (key.includes('_rigger_') || key.includes('_stretcher_') || key.includes('_slide_')) {
+                const parts = key.split('_');
+                const posId = parts[0];
+                const itemId = parts.slice(1).join('_');
+                if (db[boatName] && db[boatName].checks && db[boatName].checks.seats && db[boatName].checks.seats[posId] && db[boatName].checks.seats[posId][itemId]) {
+                    db[boatName].checks.seats[posId][itemId].photo = null;
+                }
+            } else {
+                if (db[boatName] && db[boatName].checks && db[boatName].checks.boat && db[boatName].checks.boat[key]) {
+                    db[boatName].checks.boat[key].photo = null;
+                }
+            }
+            tempPhotos[key] = null;
+            document.getElementById(`preview_wrap_${key}`).classList.add('hidden');
+            document.getElementById(`img_preview_${key}`).src = '';
+            document.getElementById(`photo_${key}`).value = '';
+        }
+
+        function saveCurrentPositionFormState() {
+            const boatName = document.getElementById('detail-boat-select').value;
+            if (!boatName || !db[boatName]) return;
+            if (!db[boatName].checks.seats[currentDetailPosition]) {
+                db[boatName].checks.seats[currentDetailPosition] = {};
+            }
+
+            const seatSections = CHECK_SECTIONS.filter(s => s.target === 'seat');
+            seatSections.forEach(sec => {
+                sec.items.forEach(item => {
+                    const uniqueKey = `${currentDetailPosition}_${sec.id}_${item.id}`;
+                    const statusElem = document.getElementById(`status_${uniqueKey}`);
+                    const memoElem = document.getElementById(`memo_${uniqueKey}`);
+                    if (statusElem && memoElem) {
+                        const status = statusElem.value;
+                        const memo = memoElem.value;
+                        const photo = tempPhotos[uniqueKey] !== undefined ? tempPhotos[uniqueKey] : (db[boatName].checks.seats[currentDetailPosition][item.id] ? db[boatName].checks.seats[currentDetailPosition][item.id].photo : null);
+                        
+                        db[boatName].checks.seats[currentDetailPosition][item.id] = { status, memo, photo };
+                    }
+                });
+            });
+        }
+
+        async function saveDetailedCheck(event) {
+            event.preventDefault();
+            const boatName = document.getElementById('detail-boat-select').value;
+            const date = document.getElementById('check-date').value || new Date().toISOString().split('T')[0];
+            const reporter = document.getElementById('check-reporter').value || '不明';
+
+            if (!db[boatName]) return;
+
+            saveCurrentPositionFormState();
+
+            if (!db[boatName].checks.boat) db[boatName].checks.boat = {};
+            const boatWideSections = CHECK_SECTIONS.filter(s => s.target === 'boat');
+            boatWideSections.forEach(sec => {
+                sec.items.forEach(item => {
+                    const statusElem = document.getElementById(`status_${item.id}`);
+                    const memoElem = document.getElementById(`memo_${item.id}`);
+                    if (statusElem && memoElem) {
+                        const status = statusElem.value;
+                        const memo = memoElem.value;
+                        const photo = tempPhotos[item.id] !== undefined ? tempPhotos[item.id] : (db[boatName].checks.boat[item.id] ? db[boatName].checks.boat[item.id].photo : null);
+                        
+                        db[boatName].checks.boat[item.id] = { status, memo, photo };
+                    }
+                });
+            });
+
+            db[boatName].lastCheckDate = date;
+            db[boatName].lastReporter = reporter;
+
+            let worstStatus = 'normal';
+
+            Object.keys(db[boatName].checks.boat).forEach(k => {
+                const c = db[boatName].checks.boat[k];
+                if (c.status === 'repair') worstStatus = 'repair';
+                else if (c.status === 'minor' && worstStatus !== 'repair') worstStatus = 'minor';
+            });
+
+            if (db[boatName].checks.seats) {
+                Object.keys(db[boatName].checks.seats).forEach(pKey => {
+                    const seatMap = db[boatName].checks.seats[pKey];
+                    Object.keys(seatMap).forEach(iKey => {
+                        const c = seatMap[iKey];
+                        if (c.status === 'repair') worstStatus = 'repair';
+                        else if (c.status === 'minor' && worstStatus !== 'repair') worstStatus = 'minor';
+                    });
+                });
+            }
+
+            db[boatName].status = worstStatus;
+            
+            await saveBoatToCloud(boatName);
+            tempPhotos = {};
+            showAlert(`「${boatName}」の詳細点検カルテをクラウドに保存しました！`);
+        }
+
+        async function resolveBoatStatus() {
+            const boatName = document.getElementById('detail-boat-select').value;
+            if (!db[boatName]) return;
+
+            db[boatName].status = 'normal';
+            if (db[boatName].checks.boat) {
+                Object.keys(db[boatName].checks.boat).forEach(k => {
+                    db[boatName].checks.boat[k].status = 'normal';
+                });
+            }
+            if (db[boatName].checks.seats) {
+                Object.keys(db[boatName].checks.seats).forEach(pKey => {
+                    Object.keys(db[boatName].checks.seats[pKey]).forEach(iKey => {
+                        db[boatName].checks.seats[pKey][iKey].status = 'normal';
+                    });
+                });
+            }
+            await saveBoatToCloud(boatName);
+            loadBoatDetailData();
+            showAlert(`「${boatName}」の状態を「正常」にリセットしました。`);
+        }
+
+        function loadRiggingData() {
+            const boatName = document.getElementById('rigging-boat-select').value;
+            if (!boatName || !db[boatName]) return;
+
+            const boatDef = BOAT_DEFINITIONS.find(d => d.name === boatName);
+            document.getElementById('rigging-boat-type-desc').innerText = `選択艇: ${boatName} (${boatDef.label}) - リガー・オール・ストレッチャーの詳細リギング値`;
+
+            const rigging = db[boatName].rigging || { sheetId: '', date: '', positions: {} };
+            document.getElementById('rigging-sheet-id').value = rigging.sheetId || '';
+            document.getElementById('rigging-date').value = rigging.date || new Date().toISOString().split('T')[0];
+
+            const positions = getPositionsForType(boatDef.type);
+            const container = document.getElementById('rigging-positions-container');
+            container.innerHTML = '';
+
+            positions.forEach(pos => {
+                const posData = (rigging.positions && rigging.positions[pos.id]) ? rigging.positions[pos.id] : {
+                    playerName: "", spanSpread: "", workHeight: "", pinForwardTilt: "", pinOutwardTilt: "", oarlockAngle: "",
+                    oarMaker: "", bladeShape: "", oarShaft: "", bladePitch: "", oarLength: "", oarInboard: "", oarOverlap: "",
+                    stretcherAngle: "", heelDepth: "", pinToHeel: "", workThrough: "", memo: ""
+                };
+                
+                const card = document.createElement('div');
+                card.className = 'bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-200 space-y-4';
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 gap-2">
+                        <span class="font-bold text-sm text-blue-900 flex items-center gap-1.5">
+                            👤 ポジション: ${pos.name}
+                        </span>
+                        <div class="w-full sm:w-1/3">
+                            <input type="text" data-pos-id="${pos.id}" data-field="playerName" value="${posData.playerName || ''}" placeholder="担当選手名 (例: 滋賀 太郎)" class="w-full px-2.5 py-1.5 border rounded text-xs bg-white font-bold text-gray-800 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- リガー関係 -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded">⚙️ リガー設定項目</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">スパンスプレッド</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="spanSpread" value="${posData.spanSpread || ''}" placeholder="例: 158cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ワークハイト</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="workHeight" value="${posData.workHeight || ''}" placeholder="例: 16.5cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ピン前傾 (°)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="pinForwardTilt" value="${posData.pinForwardTilt || ''}" placeholder="例: 0°" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ピン外傾 (°)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="pinOutwardTilt" value="${posData.pinOutwardTilt || ''}" placeholder="例: 4°" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">オアロック固有角 (°)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarlockAngle" value="${posData.oarlockAngle || ''}" placeholder="例: 5°" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- オール関係 -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded">🛶 オール設定項目</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-7 gap-2 text-xs">
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">メーカー名</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarMaker" value="${posData.oarMaker || ''}" placeholder="例: Croker" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ブレード形状</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="bladeShape" value="${posData.bladeShape || ''}" placeholder="例: Slick" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">シャフト</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarShaft" value="${posData.oarShaft || ''}" placeholder="例: Hard" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ブレードピッチ (°)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="bladePitch" value="${posData.bladePitch || ''}" placeholder="例: 7°" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">オール全長 (cm)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarLength" value="${posData.oarLength || ''}" placeholder="例: 284cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">インボード (cm)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarInboard" value="${posData.oarInboard || ''}" placeholder="例: 88cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">オーバーラップ</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="oarOverlap" value="${posData.oarOverlap || ''}" placeholder="例: 17cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ストレッチャー関係 -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded">👟 ストレッチャー設定項目</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">角度 (°)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="stretcherAngle" value="${posData.stretcherAngle || ''}" placeholder="例: 41°" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ヒールデプス (cm)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="heelDepth" value="${posData.heelDepth || ''}" placeholder="例: 15cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ピン to ヒール (cm)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="pinToHeel" value="${posData.pinToHeel || ''}" placeholder="例: 58cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-600 mb-1 text-[11px]">ワークスルー (cm)</label>
+                                <input type="text" data-pos-id="${pos.id}" data-field="workThrough" value="${posData.workThrough || ''}" placeholder="例: 75cm" class="w-full px-2 py-1.5 border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <input type="text" data-pos-id="${pos.id}" data-field="memo" value="${posData.memo || ''}" placeholder="ポジション別特記事項・セッティングメモ（任意）" class="w-full px-2.5 py-1.5 border rounded text-xs bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function saveRiggingData(event) {
+            event.preventDefault();
+            const boatName = document.getElementById('rigging-boat-select').value;
+            if (!db[boatName]) return;
+
+            const sheetId = document.getElementById('rigging-sheet-id').value;
+            const date = document.getElementById('rigging-date').value;
+
+            const boatDef = BOAT_DEFINITIONS.find(d => d.name === boatName);
+            const positions = getPositionsForType(boatDef.type);
+            
+            let newPositionsData = {};
+            positions.forEach(pos => {
+                const container = document.getElementById('rigging-positions-container');
+                const getVal = (field) => {
+                    const el = container.querySelector(`[data-pos-id="${pos.id}"][data-field="${field}"]`);
+                    return el ? el.value : "";
+                };
+
+                newPositionsData[pos.id] = {
+                    playerName: getVal('playerName'),
+                    spanSpread: getVal('spanSpread'),
+                    workHeight: getVal('workHeight'),
+                    pinForwardTilt: getVal('pinForwardTilt'),
+                    pinOutwardTilt: getVal('pinOutwardTilt'),
+                    oarlockAngle: getVal('oarlockAngle'),
+                    oarMaker: getVal('oarMaker'),
+                    bladeShape: getVal('bladeShape'),
+                    oarShaft: getVal('oarShaft'),
+                    bladePitch: getVal('bladePitch'),
+                    oarLength: getVal('oarLength'),
+                    oarInboard: getVal('oarInboard'),
+                    oarOverlap: getVal('oarOverlap'),
+                    stretcherAngle: getVal('stretcherAngle'),
+                    heelDepth: getVal('heelDepth'),
+                    pinToHeel: getVal('pinToHeel'),
+                    workThrough: getVal('workThrough'),
+                    memo: getVal('memo')
+                };
+            });
+
+            db[boatName].rigging = { sheetId, date, positions: newPositionsData };
+            await saveBoatToCloud(boatName);
+            showAlert(`「${boatName}」の詳細リギング値をクラウドに保存しました！`);
+        }
+
+        let selectedBoatForModal = null;
+
+        function openBoatModal(boat) {
+            selectedBoatForModal = boat;
+            const boatInfo = db[boat];
+            const def = BOAT_DEFINITIONS.find(d => d.name === boat);
+            document.getElementById('modal-title').innerText = `艇カルテ: ${boat} [${def.label}]`;
+
+            let badge = '<span class="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-semibold">🟢 異常なし</span>';
+            if (boatInfo.status === 'minor') badge = '<span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">🟡 軽微な懸念あり</span>';
+            else if (boatInfo.status === 'repair') badge = '<span class="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs font-semibold">🔴 要修理・交換</span>';
+
+            let issueList = [];
+            if (boatInfo.checks && boatInfo.checks.boat) {
+                Object.keys(boatInfo.checks.boat).forEach(k => {
+                    const c = boatInfo.checks.boat[k];
+                    if (c.status === 'minor' || c.status === 'repair') {
+                        issueList.push(`<li><strong>[共通: ${k}]</strong> ${c.status === 'repair' ? '🔴' : '🟡'} ${c.memo || 'メモなし'} ${c.photo ? '<br><img src="' + c.photo + '" class="h-16 mt-1 rounded border object-contain cursor-pointer hover:opacity-85 transition" onclick="openImageModal(\'' + c.photo + '\')" title="タップして拡大">' : ''}</li>`);
+                    }
+                });
+            }
+            if (boatInfo.checks && boatInfo.checks.seats) {
+                const positions = getPositionsForType(def.type);
+                Object.keys(boatInfo.checks.seats).forEach(pKey => {
+                    const pObj = positions.find(p => p.id === pKey);
+                    const pName = pObj ? pObj.name : pKey;
+                    const seatMap = boatInfo.checks.seats[pKey];
+                    Object.keys(seatMap).forEach(iKey => {
+                        const c = seatMap[iKey];
+                        if (c.status === 'minor' || c.status === 'repair') {
+                            issueList.push(`<li><strong>[${pName}: ${iKey}]</strong> ${c.status === 'repair' ? '🔴' : '🟡'} ${c.memo || 'メモなし'} ${c.photo ? '<br><img src="' + c.photo + '" class="h-16 mt-1 rounded border object-contain cursor-pointer hover:opacity-85 transition" onclick="openImageModal(\'' + c.photo + '\')" title="タップして拡大">' : ''}</li>`);
+                        }
+                    });
+                });
+            }
+
+            let issuesHtml = issueList.length > 0 ? `<ul class="space-y-2 text-xs bg-red-50 p-3 rounded-xl border border-red-100">${issueList.join('')}</ul>` : '<p class="text-xs text-gray-500">現在報告されている不具合はありません。</p>';
+
+            let rigSummary = '<p class="text-xs text-gray-500">リギング未設定</p>';
+            if (boatInfo.rigging && boatInfo.rigging.positions) {
+                let posList = [];
+                Object.keys(boatInfo.rigging.positions).forEach(pKey => {
+                    const d = boatInfo.rigging.positions[pKey];
+                    if (d.playerName || d.spanSpread || d.oarLength) {
+                        posList.push(`
+                            <div class="text-xs bg-gray-50 p-2.5 rounded-lg border mb-1.5 space-y-1">
+                                <div class="font-bold text-blue-900">[${pKey}] 選手: ${d.playerName || '未指定'}</div>
+                                <div class="text-gray-600 grid grid-cols-2 sm:grid-cols-3 gap-1">
+                                    <span>スパン: ${d.spanSpread || '-'}</span>
+                                    <span>ハイト: ${d.workHeight || '-'}</span>
+                                    <span>オール長: ${d.oarLength || '-'}</span>
+                                    <span>インボード: ${d.oarInboard || '-'}</span>
+                                    <span>ピン to ヒール: ${d.pinToHeel || '-'}</span>
+                                    <span>ストレッチャー角: ${d.stretcherAngle || '-'}</span>
+                                </div>
+                            </div>
+                        `);
+                    }
+                });
+                if (posList.length > 0) rigSummary = posList.join('');
+            }
+
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl">
+                        <span class="text-xs font-bold text-gray-700">現在のステータス:</span>
+                        ${badge}
+                    </div>
+                    <div class="text-xs text-gray-600">
+                        <strong>最終点検:</strong> ${boatInfo.lastCheckDate || '未実施'} (点検者: ${boatInfo.lastReporter || '-'})
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-xs text-gray-800 mb-1">⚠️ 検出された懸念・不具合箇所:</h4>
+                        ${issuesHtml}
+                    </div>
+                    <div class="pt-2 border-t">
+                        <h4 class="font-bold text-xs text-gray-800 mb-1">📐 リギング詳細サマリー:</h4>
+                        ${rigSummary}
+                    </div>
+                </div>
+            `;
+            document.getElementById('boat-modal').classList.remove('hidden');
+        }
+
+        function closeBoatModal() {
+            document.getElementById('boat-modal').classList.add('hidden');
+            selectedBoatForModal = null;
+        }
+
+        function openImageModal(src) {
+            if (!src) return;
+            document.getElementById('modal-zoomed-img').src = src;
+            document.getElementById('image-modal').classList.remove('hidden');
+        }
+
+        function closeImageModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+            document.getElementById('modal-zoomed-img').src = '';
+        }
+
+        function jumpToDetailFromModal() {
+            if (selectedBoatForModal) {
+                closeBoatModal();
+                switchTab('detail');
+                document.getElementById('detail-boat-select').value = selectedBoatForModal;
+                loadBoatDetailData();
+            }
+        }
+
+        function jumpToRiggingFromModal() {
+            if (selectedBoatForModal) {
+                closeBoatModal();
+                switchTab('rigging');
+                document.getElementById('rigging-boat-select').value = selectedBoatForModal;
+                loadRiggingData();
+            }
+        }
+
+        function openResetModal() {
+            document.getElementById('admin-password').value = '';
+            document.getElementById('reset-modal').classList.remove('hidden');
+        }
+
+        function closeResetModal() {
+            document.getElementById('reset-modal').classList.add('hidden');
+        }
+
+        async function executeReset() {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === 'shiga2026') {
+                closeResetModal();
+                showAlert("全データを初期化中...");
+                for (const def of BOAT_DEFINITIONS) {
+                    const docRefSnap = window.docRef(window.dbCloud, "boats", def.name);
+                    const positions = getPositionsForType(def.type);
+                    let initialRiggingRows = {};
+                    let initialSeatChecks = {};
+                    positions.forEach(p => {
+                        initialRiggingRows[p.id] = {
+                            playerName: "", spanSpread: "", workHeight: "", pinForwardTilt: "", pinOutwardTilt: "", oarlockAngle: "",
+                            oarMaker: "", bladeShape: "", oarShaft: "", bladePitch: "", oarLength: "", oarInboard: "", oarOverlap: "",
+                            stretcherAngle: "", heelDepth: "", pinToHeel: "", workThrough: "", memo: ""
+                        };
+                        initialSeatChecks[p.id] = {};
+                    });
+
+                    db[def.name] = {
+                        name: def.name,
+                        type: def.type,
+                        label: def.label,
+                        status: "normal",
+                        lastCheckDate: "-",
+                        lastReporter: "-",
+                        checks: { boat: {}, seats: initialSeatChecks },
+                        rigging: { sheetId: "", date: "", positions: initialRiggingRows }
+                    };
+                    await window.setDoc(docRefSnap, db[def.name]);
+                }
+                renderDashboard();
+                showAlert('すべてのデータをリセットし、初期化しました。');
+            } else {
+                showAlert('管理者パスワードが間違っています。');
+            }
+        }
+
+        function showAlert(msg) {
+            document.getElementById('alert-message').innerText = msg;
+            document.getElementById('alert-modal').classList.remove('hidden');
+        }
+
+        function closeAlertModal() {
+            document.getElementById('alert-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
