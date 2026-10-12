@@ -11,10 +11,23 @@
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen pb-20">
 
+    <!-- 部員認証ログインモーダル -->
+    <div id="login-modal" class="fixed inset-0 bg-blue-950/95 flex items-center justify-center p-4 z-[200]">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <h3 class="text-base font-bold text-blue-900">🚣‍♂️ 滋賀大学漕艇部 総合艇管理システム</h3>
+            <p class="text-xs text-gray-600">閲覧・編集には部活関連のパスワードを入力してください。</p>
+            <div>
+                <input type="password" id="login-password" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter') checkLoginPassword()" class="w-full px-3 py-2 border rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <button onclick="checkLoginPassword()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 transition shadow">認証してログイン</button>
+            <p id="login-error" class="text-[11px] text-red-600 hidden font-medium">パスワードが違います</p>
+        </div>
+    </div>
+
     <header class="bg-blue-900 text-white shadow-md sticky top-0 z-50">
         <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-3">
             <h1 class="text-base sm:text-lg font-bold flex items-center gap-2">
-                🚣‍♂️ 滋賀大学漕艇部 総合艇管理・リギング <span id="sync-status" class="text-[10px] bg-yellow-500 text-white px-2 py-0.5 rounded font-normal">🔄 同期中...</span>
+                🚣‍♂️ 滋賀大学漕艇部 総合艇管理 <span id="sync-status" class="text-[10px] bg-yellow-500 text-white px-2 py-0.5 rounded font-normal">🔒 認証待ち</span>
             </h1>
             <div class="flex flex-wrap gap-1.5 justify-center">
                 <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-blue-700 font-medium transition">ステータス一覧</button>
@@ -31,7 +44,7 @@
         <section id="view-dashboard" class="space-y-6">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                    <h2 class="font-bold text-gray-900 text-base">保有18艇 リアルタイムステータス (雲泥同期)</h2>
+                    <h2 class="font-bold text-gray-900 text-base">保有18艇 リアルタイムステータス </h2>
                     <p class="text-xs text-gray-500">FirebaseクラウドDBと連携中。カードをタップして詳細を確認。</p>
                 </div>
                 <div class="flex items-center gap-2 text-xs">
@@ -197,7 +210,7 @@
             <p class="text-xs text-gray-600">すべてのデータを初期状態にリセットします。</p>
             <div>
                 <label class="block text-xs font-semibold text-gray-700 mb-1">管理者パスワード</label>
-                <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-2 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:outline-none">
+                <input type="password" id="admin-password" placeholder="パスワードを入力" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:outline-none">
             </div>
             <div class="flex gap-2 pt-2">
                 <button onclick="executeReset()" class="flex-1 bg-red-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-red-700 transition">リセット実行</button>
@@ -242,11 +255,6 @@
         window.ref = ref;
         window.uploadBytes = uploadBytes;
         window.getDownloadURL = getDownloadURL;
-
-        // アプリ起動時にクラウドからデータ同期
-        window.addEventListener('DOMContentLoaded', async () => {
-            await initDatabase();
-        });
     </script>
 
     <script>
@@ -270,6 +278,23 @@
             { name: "GARUDA", type: "1x", label: "シングルスカル (1x)" },
             { name: "White Wind", type: "1x", label: "シングルスカル (1x)" }
         ];
+
+        // 部活関連のログインパスワード（6文字: biwako）
+        const APP_LOGIN_PASSWORD = "biwako";
+
+        function checkLoginPassword() {
+            const inputVal = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+
+            if (inputVal === APP_LOGIN_PASSWORD) {
+                document.getElementById('login-modal').classList.add('hidden');
+                // 認証成功後にデータベース初期化を実行
+                initDatabase();
+            } else {
+                errorEl.classList.remove('hidden');
+                document.getElementById('login-password').value = '';
+            }
+        }
 
         function getPositionsForType(type) {
             switch(type) {
